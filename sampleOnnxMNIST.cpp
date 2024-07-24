@@ -168,13 +168,13 @@ bool SampleOnnxMNIST::build()
         return false;
     }
 
-    ASSERT(network->getNbInputs() == 1);
+    ASSERT(network->getNbInputs() == 2); //ansisheng ASSERT(network->getNbInputs() == 1);
     mInputDims = network->getInput(0)->getDimensions();
     ASSERT(mInputDims.nbDims == 4);
 
     ASSERT(network->getNbOutputs() == 1);
     mOutputDims = network->getOutput(0)->getDimensions();
-    ASSERT(mOutputDims.nbDims == 2);
+    ASSERT(mOutputDims.nbDims == 4); //anzisheng ASSERT(mOutputDims.nbDims == 2)
 
     return true;
 }
@@ -231,7 +231,7 @@ bool SampleOnnxMNIST::infer()
     }
 
     // Read the input data into the managed buffers
-    ASSERT(mParams.inputTensorNames.size() == 1);
+    ASSERT(mParams.inputTensorNames.size() == 2);
     if (!processInput(buffers))
     {
         return false;
@@ -344,6 +344,7 @@ samplesCommon::OnnxSampleParams initializeSampleParams(const samplesCommon::Args
     samplesCommon::OnnxSampleParams params;
     if (args.dataDirs.empty()) // Use default directories if user hasn't provided directory paths
     {
+        params.dataDirs.push_back("build/");
         params.dataDirs.push_back("data/mnist/");
         params.dataDirs.push_back("data/samples/mnist/");
     }
@@ -351,14 +352,15 @@ samplesCommon::OnnxSampleParams initializeSampleParams(const samplesCommon::Args
     {
         params.dataDirs = args.dataDirs;
     }
-    params.onnxFileName = "mnist.onnx";
-    params.inputTensorNames.push_back("Input3");
+    params.onnxFileName = "inswapper_128.onnx";
+    params.inputTensorNames.push_back("source");
+    params.inputTensorNames.push_back("target");
     cout <<"params.inputTensorNames  size: " << params.inputTensorNames.size() <<endl;
     
-    params.outputTensorNames.push_back("Plus214_Output_0");
+    params.outputTensorNames.push_back("output");
     cout <<"params.outputTensorNames  size: " << params.outputTensorNames.size() <<endl;
     params.dlaCore = args.useDLACore;
-    params.int8 = args.runInInt8;
+    //params.int8 = args.runInInt8;
     params.fp16 = args.runInFp16;
 
     return params;
