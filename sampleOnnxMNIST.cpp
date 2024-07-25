@@ -399,8 +399,8 @@ bool SampleOnnxMNIST::verifyOutput(const samplesCommon::BufferManager& buffers)
     std::cout << "*++++++++++ " << endl;
     //box_mask.setTo(0, box_mask < 0);
 	//box_mask.setTo(1, box_mask > 1);
-    Mat dstimg = paste_back(target_img, result, box_mask, affine_matrix);
-    imwrite("result.jpg", dstimg);
+    // Mat dstimg = paste_back(target_img, result, box_mask, affine_matrix);
+    // imwrite("result.jpg", dstimg);
 
 
 
