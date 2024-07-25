@@ -43,6 +43,9 @@
 #include <sstream>
 using namespace nvinfer1;
 using samplesCommon::SampleUniquePtr;
+#include <opencv2/opencv.hpp>
+using namespace cv;
+using namespace std;
 using namespace std;
 //using namespace cv;
 const std::string gSampleName = "TensorRT.sample_onnx_mnist";
@@ -263,34 +266,84 @@ bool SampleOnnxMNIST::infer()
 //!
 bool SampleOnnxMNIST::processInput(const samplesCommon::BufferManager& buffers)
 {
-    const int inputH = mInputDims.d[2];
-    const int inputW = mInputDims.d[3];
+    const int inputH = 128;//mInputDims.d[2];
+    const int inputW = 128;//mInputDims.d[3];
 
-    // Read a random digit file
-    srand(unsigned(time(nullptr)));
-    std::vector<uint8_t> fileData(inputH * inputW);
-    mNumber = rand() % 10;
+    // // Read a random digit file
+    // srand(unsigned(time(nullptr)));
+    // std::vector<uint8_t> fileData(inputH * inputW);
+    // mNumber = rand() % 10;
     
-    readPGMFile(locateFile(std::to_string(mNumber) + ".pgm", mParams.dataDirs), fileData.data(), inputH, inputW);
+    // readPGMFile(locateFile(std::to_string(mNumber) + ".pgm", mParams.dataDirs), fileData.data(), inputH, inputW);
 
     // Print an ascii representation
     sample::gLogInfo << "Input:" << std::endl;
-    for (int i = 0; i < inputH * inputW; i++)
+
+    cv::Mat crop_img  = cv::imread("crop_img.jpg");
+    std::cout << "crop_img: "<< crop_img.rows <<std::endl;
+    vector<cv::Mat> bgrChannels(3);
+    split(crop_img, bgrChannels);
+    for (int c = 0; c < 3; c++)
     {
-        sample::gLogInfo << (" .:-=+*#%@"[fileData[i] / 26]) << (((i + 1) % inputW) ? "" : "\n");
+        bgrChannels[c].convertTo(bgrChannels[c], CV_32FC1, 1 / (255.0*1), 0);
     }
+    std::vector<float>  input_image;
+    const int image_area = 128 * 128;
+    input_image.resize(3 * image_area);
+    size_t single_chn_size = image_area * sizeof(float);
+    std::cout << "00000 " << endl;
+    memcpy(input_image.data(), (float *)bgrChannels[2].data, single_chn_size); ///rgb顺序
+    memcpy(input_image.data() + image_area, (float *)bgrChannels[1].data, single_chn_size);
+    memcpy(input_image.data() + image_area * 2, (float *)bgrChannels[0].data, single_chn_size);
+    std::cout << "1111 " << endl;
+    float* hostDataBuffer0 = static_cast<float*>(buffers.getHostBuffer("target"));//static_cast<float*>(buffers.mManagedBuffers[0]->hostBuffer.data());
+    for (int i = 0; i < 128*128*3; i++)
+    {
+        hostDataBuffer0[i] = input_image[i];
+
+    }
+
+
+    // for (int i = 0; i < inputH * inputW; i++)
+    // {
+    //     //sample::gLogInfo << (" .:-=+*#%@"[fileData[i] / 26]) << (((i + 1) % inputW) ? "" : "\n");
+
+    // }
     sample::gLogInfo << std::endl;
     
-    std::cout <<"mParams.inputTensorNames[0]："<<mParams.inputTensorNames[0]<< std::endl;
-    //float* hostDataBuffer = static_cast<float*>(buffers.getHostBuffer(mParams.inputTensorNames[0]));
-    float* hostDataBuffer = static_cast<float*>(buffers.getHostBuffer("Input3"));
-    for (int i = 0; i < inputH * inputW; i++)
-    {
-        hostDataBuffer[i] = 1.0 - float(fileData[i] / 255.0);
+    // std::cout <<"mParams.inputTensorNames[0]-----    ："<<mParams.inputTensorNames[0]<< std::endl;
+    // float* hostDataBuffer = static_cast<float*>(buffers.getHostBuffer("target"));
+    // //float* hostDataBuffer = static_cast<float*>(buffers.getHostBuffer("Input3"));
+    // for (int i = 0; i < inputH * inputW; i++)
+    // {
+    //     //hostDataBuffer[i] = 1.0 - float(fileData[i] / 255.0);
+    // }
+    const int Embedding_ch = 512;
+    std::vector<float> embedding;
+    embedding.resize(Embedding_ch);
+    float *pdata  = embedding.data();
+     ifstream srcFile("embedding.txt", ios::in); 
+     if(!srcFile.is_open())
+     {
+         cout << "cann't open embedding.txt"<<endl;
+     }
+    std::cout << "3333 " << endl;
+    for (int i = 0; i < Embedding_ch; i++)
+    {       
+         float x; 
+         srcFile >> x;
+         embedding[i] = x;
+        cout <<i <<": "<< x <<std::endl;        
     }
+    float* hostDataBuffer1 = static_cast<float*>(buffers.getHostBuffer("source"));
+    srcFile.close();
 
-    
-
+    std::cout << "4444 " << endl;
+    for (int i = 0; i < Embedding_ch; i++)
+    {
+        hostDataBuffer1[i] = embedding[i];
+    }
+    std::cout << "5555 " << endl;
 
     return true;
 }
@@ -302,38 +355,57 @@ bool SampleOnnxMNIST::processInput(const samplesCommon::BufferManager& buffers)
 //!
 bool SampleOnnxMNIST::verifyOutput(const samplesCommon::BufferManager& buffers)
 {
-    const int outputSize = mOutputDims.d[1];
+    const int outputSize = 128;
     cout << "mParams.outputTensorNames[0]:"<< mParams.outputTensorNames[0]<<endl;
-    float* output = static_cast<float*>(buffers.getHostBuffer(mParams.outputTensorNames[0]));
-    float val{0.0F};
-    int idx{0};
-
-    // Calculate Softmax
-    float sum{0.0F};
-    for (int i = 0; i < outputSize; i++)
+    float* output = static_cast<float*>(buffers.getHostBuffer(mParams.outputTensorNames[0])); //"output"
+    std::vector<float> vdata;
+    vdata.resize(outputSize);
+    float* pdata = vdata.data();
+    for(int i = 0; i<128*128*3; i++ )
     {
-        output[i] = exp(output[i]);
-        sum += output[i];
+        vdata[i] = *(output+i);        
+        std::cout << vdata[i]<<std::endl;
     }
+    const int out_h = 128;//outs_shape[2];
+	const int out_w = 128;//outs_shape[3];
+	const int channel_step = out_h * out_w;
+	Mat rmat(out_h, out_w, CV_32FC1, pdata);
+	Mat gmat(out_h, out_w, CV_32FC1, pdata + channel_step);
+	Mat bmat(out_h, out_w, CV_32FC1, pdata + 2 * channel_step);
+    std::cout << "********* " << endl;
+    std::cout << rmat.rows <<"  "<< rmat.cols <<endl;
+	rmat *= 255.f;
+    std::cout << "&&&&& " << endl;
+    gmat *= 255.f;
+	bmat *= 255.f;
+    std::cout << "aaaaaaaa " << endl;
+    //rmat.setTo(0, rmat < 0);
+	//rmat.setTo(255, rmat > 255);
+	//gmat.setTo(0, gmat < 0);
+    std::cout << "bbbbbbbbbb " << endl;
+	//gmat.setTo(255, gmat > 255);
+	//bmat.setTo(0, bmat < 0);
+	//bmat.setTo(255, bmat > 255);
+    std::cout << "cccccccc " << endl;
+	vector<Mat> channel_mats(3);
+	channel_mats[0] = bmat;
+	channel_mats[1] = gmat;
+	channel_mats[2] = rmat;
+    Mat result;
+     std::cout << "********* " << endl;
+	merge(channel_mats, result);
+    imwrite("result.jpg", result);
 
-    sample::gLogInfo << "Output:" << std::endl;
-    for (int i = 0; i < outputSize; i++)
-    {
-        output[i] /= sum;
-        val = std::max(val, output[i]);
-        if (val == output[i])
-        {
-            idx = i;
-        }
+    std::cout << "*++++++++++ " << endl;
+    //box_mask.setTo(0, box_mask < 0);
+	//box_mask.setTo(1, box_mask > 1);
+    Mat dstimg = paste_back(target_img, result, box_mask, affine_matrix);
+    imwrite("result.jpg", dstimg);
 
-        sample::gLogInfo << " Prob " << i << "  " << std::fixed << std::setw(5) << std::setprecision(4) << output[i]
-                         << " "
-                         << "Class " << i << ": " << std::string(int(std::floor(output[i] * 10 + 0.5F)), '*')
-                         << std::endl;
-    }
-    sample::gLogInfo << std::endl;
 
-    return idx == mNumber && val > 0.9F;
+
+    cout << "done" <<endl;
+    return true;
 }
 
 //!
@@ -353,8 +425,8 @@ samplesCommon::OnnxSampleParams initializeSampleParams(const samplesCommon::Args
         params.dataDirs = args.dataDirs;
     }
     params.onnxFileName = "inswapper_128.onnx";
-    params.inputTensorNames.push_back("source");
     params.inputTensorNames.push_back("target");
+    params.inputTensorNames.push_back("source");
     cout <<"params.inputTensorNames  size: " << params.inputTensorNames.size() <<endl;
     
     params.outputTensorNames.push_back("output");

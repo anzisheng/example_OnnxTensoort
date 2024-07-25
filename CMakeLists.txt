@@ -17,6 +17,11 @@ find_package(CUDA 11.8 REQUIRED)
 message("CUDA_LIBRARIES:${CUDA_LIBRARIES}")
 message("CUDA_INCLUDE_DIRS:${CUDA_INCLUDE_DIRS}")
 include_directories(${CUDA_INCLUDE_DIRS})
- 
+#add Opencv
+find_package(OpenCV REQUIRED)
+target_include_directories(TensorRT_test_OnnxMNIST PUBLIC ${OpenCV_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
+
+target_link_libraries(TensorRT_test_OnnxMNIST PUBLIC ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${TensorRT_LIBRARIES} ${LIBS} ${CUDA_LIBRARIES})
+
 # link
-target_link_libraries(TensorRT_test_OnnxMNIST ${LIBS} ${CUDA_LIBRARIES})
+#target_link_libraries(TensorRT_test_OnnxMNIST ${LIBS} ${CUDA_LIBRARIES})
