@@ -355,7 +355,7 @@ bool SampleOnnxMNIST::processInput(const samplesCommon::BufferManager& buffers)
 //!
 bool SampleOnnxMNIST::verifyOutput(const samplesCommon::BufferManager& buffers)
 {
-    const int outputSize = 128;
+    const int outputSize = 128*128*3;
     cout << "mParams.outputTensorNames[0]:"<< mParams.outputTensorNames[0]<<endl;
     float* output = static_cast<float*>(buffers.getHostBuffer(mParams.outputTensorNames[0])); //"output"
     std::vector<float> vdata;
@@ -397,10 +397,10 @@ bool SampleOnnxMNIST::verifyOutput(const samplesCommon::BufferManager& buffers)
     imwrite("result.jpg", result);
 
     std::cout << "*++++++++++ " << endl;
-    //box_mask.setTo(0, box_mask < 0);
-	//box_mask.setTo(1, box_mask > 1);
+    // box_mask.setTo(0, box_mask < 0);
+	// box_mask.setTo(1, box_mask > 1);
     // Mat dstimg = paste_back(target_img, result, box_mask, affine_matrix);
-    // imwrite("result.jpg", dstimg);
+    //  imwrite("result.jpg", dstimg);
 
 
 
