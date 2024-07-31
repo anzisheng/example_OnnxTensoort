@@ -33,6 +33,31 @@
 #include "common.h"
 #include "logger.h"
 #include "parserOnnxConfig.h"
+#include <filesystem>
+#include <spdlog/spdlog.h>
+
+#include "NvInfer.h"
+#include <cuda_runtime_api.h>
+#include <filesystem>
+#include <spdlog/spdlog.h>
+
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+using namespace nvinfer1;
+using samplesCommon::SampleUniquePtr;
+#include <opencv2/opencv.hpp>
+using namespace cv;
+using namespace std;
+using namespace std;
+#include "argsParser.h"
+#include "buffers.h"
+#include "common.h"
+#include "logger.h"
+#include "parserOnnxConfig.h"
+#include <filesystem>
+#include <spdlog/spdlog.h>
 
 #include "NvInfer.h"
 #include <cuda_runtime_api.h>
@@ -49,6 +74,11 @@ using namespace std;
 using namespace std;
 //using namespace cv;
 const std::string gSampleName = "TensorRT.sample_onnx_mnist";
+// Utility method for checking if a file exists on disk
+inline bool doesFileExist(const std::string &name) {
+    std::ifstream f(name.c_str());
+    return f.good();
+}
 
 //! \brief  The SampleOnnxMNIST class implements the ONNX MNIST sample
 //!
@@ -152,10 +182,42 @@ bool SampleOnnxMNIST::build()
     }
     config->setProfileStream(*profileStream);
 
-    SampleUniquePtr<IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
-    if (!plan)
+    //save plan
+    // Write the engine to disk
+    const auto engineName = "inswapper_128.engine.NVIDIAGeForceRTX3080.fp16.1.1";//"gfpgan_1.4.engine.NVIDIAGeForceRTX3080.fp16.1.1";
+    // SampleUniquePtr<IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
+    // if (!plan)
+    // {
+    //     return false;
+    // }
+    if(!doesFileExist(engineName))
+    {   SampleUniquePtr<IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
+        if (!plan)
+        {
+            return false;
+        }    
+        cout << "engine name :"<< engineName << endl;
+        const auto enginePath = "./inswapper_128.engine.NVIDIAGeForceRTX3080.fp16.1.1";//std::filesystem::path("./") / engineName;
+        cout << "engine path :"<< enginePath/*.string()*/ << endl;
+        std::ofstream outfile(enginePath, std::ofstream::binary);
+        outfile.write(reinterpret_cast<const char *>(plan->data()), plan->size());
+        spdlog::info("Success, saved engine to {}", enginePath/*.string()*/);
+    }
+    else
     {
-        return false;
+        cout << "loading eng file"<<endl;
+
+    }
+    const auto enginePath = "./inswapper_128.engine.NVIDIAGeForceRTX3080.fp16.1.1";//std::filesystem::path("./") / engineName;//std::filesystem::path("./") / engineName;
+    std::ifstream file(/*trtModelPath*/enginePath, std::ios::binary | std::ios::ate);
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::vector<char> buffer(size);
+    if (!file.read(buffer.data(), size)) {
+        auto msg = "Error, unable to read engine file";
+        spdlog::error(msg);
+        throw std::runtime_error(msg);
     }
 
     mRuntime = std::shared_ptr<nvinfer1::IRuntime>(createInferRuntime(sample::gLogger.getTRTLogger()));
@@ -165,7 +227,7 @@ bool SampleOnnxMNIST::build()
     }
 
     mEngine = std::shared_ptr<nvinfer1::ICudaEngine>(
-        mRuntime->deserializeCudaEngine(plan->data(), plan->size()), samplesCommon::InferDeleter());
+        mRuntime->deserializeCudaEngine(buffer.data(), buffer.size()), samplesCommon::InferDeleter());
     if (!mEngine)
     {
         return false;
